@@ -121,16 +121,20 @@ def renameRange (src dst : String) (f : RelSem) : RelSem :=
     ∃ act ν', f ν (act, ν') ∧
       out = ((if act = Action.atom src then Action.atom dst else act), ν')
 
+/- renaming preserves definedness -/
+private theorem renameRange_defined (σ : RelSem) (src dst : String) (ν : Valuation) (hdef: Defined σ ν) :
+  Defined (renameRange src dst σ) ν := by
+  rcases hdef with ⟨out, hout⟩
+  exact ⟨((if out.1 = Action.atom src then Action.atom dst else out.1), out.2), ⟨out.1, out.2, hout, rfl⟩⟩
+
 theorem rename_preserves_satisfies {σ : RelSem} {Φ : GFD} {src dst : String}
     (hσ : Satisfies σ Φ) :
     Satisfies (renameRange src dst σ) Φ := by
   intro ν₁ ν₂ hg₁ hg₂ hag
   rcases hσ hg₁ hg₂ hag with ⟨hdef₁, hdef₂, hpost₁, hpost₂, huniq⟩
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · rcases hdef₁ with ⟨out, hout⟩
-    exact ⟨((if out.1 = Action.atom src then Action.atom dst else out.1), out.2), ⟨out.1, out.2, hout, rfl⟩⟩
-  · rcases hdef₂ with ⟨out, hout⟩
-    exact ⟨((if out.1 = Action.atom src then Action.atom dst else out.1), out.2), ⟨out.1, out.2, hout, rfl⟩⟩
+  · apply renameRange_defined _ _ _ _ hdef₁
+  · apply renameRange_defined _ _ _ _ hdef₂
   · intro out hout
     rcases hout with ⟨act, ν', hσ', rfl⟩
     exact hpost₁ (act, ν') hσ'

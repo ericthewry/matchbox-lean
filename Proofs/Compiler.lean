@@ -481,6 +481,13 @@ theorem compiler_domain_preservation {σ : TableVar → Table} {Δ : TableVar �
     rcases hdef with ⟨out, hout⟩
     exact ⟨out, compiler_refinement hcomp hout⟩
 
+/-  the compiler preserves definedness -/
+private theorem defined_run_compile (σ : TableVar → Table) (C : IProgram) (T : Table) (ν : Valuation)
+  (hcomp : compile σ C = some T) (hdef : Defined (denote (semEnv σ) (erase C)) ν):
+  Defined T.run ν := by
+  rcases hdef with ⟨out, hout⟩
+  exact ⟨out, compiler_complete hcomp hout⟩
+
 theorem compiler_type_preservation {σ : TableVar → Table} {Γ : TableVar → List GFD}
     {Δ : TableVar → Formula}
     (hΓ : EnvModelsFDT σ Γ) (hΔ : EnvModelsDomT σ Δ)
@@ -490,10 +497,8 @@ theorem compiler_type_preservation {σ : TableVar → Table} {Γ : TableVar → 
   intro ν₁ ν₂ hg₁ hg₂ hag
   rcases type_soundness hΓ hΔ hfd hg₁ hg₂ hag with ⟨hdef₁, hdef₂, hpost₁, hpost₂, huniq⟩
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · rcases hdef₁ with ⟨out, hout⟩
-    exact ⟨out, compiler_complete hcomp hout⟩
-  · rcases hdef₂ with ⟨out, hout⟩
-    exact ⟨out, compiler_complete hcomp hout⟩
+  · apply defined_run_compile _ _ _ _ hcomp hdef₁
+  · apply defined_run_compile _ _ _ _ hcomp hdef₂
   · intro out hout
     exact hpost₁ _ (compiler_refinement hcomp hout)
   · intro out hout

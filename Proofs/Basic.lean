@@ -160,6 +160,30 @@ inductive FDCheck (Γ : TableVar → List GFD) (Δ : TableVar → Formula) : Pro
       (∀ ν, ψ' ν → ψ ν) →
       FDCheck Γ Δ C ⟨xs, φ, ys, ψ⟩
 
+/- join is defined when both sides are -/
+private theorem defined_denote_join (C₁ C₂ : Program) (σ : TableVar → RelSem) (ν : Valuation)
+  (hdef₁ : Defined (denote σ C₁) ν) (hdef₂ : Defined (denote σ C₂) ν) :
+  Defined (denote σ (C₁.join C₂)) ν := by
+  rcases hdef₁ with ⟨out₁, hout₁⟩
+  rcases hdef₂ with ⟨out₂, hout₂⟩
+  exact ⟨(Action.pair out₁.1 out₂.1, mergeVal out₁.2 out₂.2),
+    ⟨out₁.1, out₂.1, out₁.2, out₂.2, hout₁, hout₂, rfl⟩⟩
+
+/- seq is defined when the first stage runs and the second is defined on its result -/
+private theorem defined_denote_seq (C₁ C₂ : Program) (ν : Valuation) (σ : TableVar → RelSem)
+  (mid : Action × Valuation) (hmid : denote σ C₁ ν mid) (hmid₂ : Defined (denote σ C₂) mid.2) :
+  Defined (denote σ (C₁.seq C₂)) ν := by
+  rcases hmid₂ with ⟨out, hout⟩
+  exact ⟨out, ⟨mid, hmid, hout⟩⟩
+
+/- pref is defined when the either branch is defined -/
+private theorem defined_denote_pref (C₁ C₂ : Program) (σ : TableVar → RelSem) (ν : Valuation)
+  (hdef: Defined (denote σ C₁) ν ∨ Defined (denote σ C₂) ν) : Defined (denote σ (C₁.pref C₂)) ν := by
+  classical
+  by_cases h : Defined (denote σ C₁) ν
+  · simp_all [Defined, denote]
+  · simp_all [Defined, denote]
+
 theorem domain_overapprox {σ : TableVar → RelSem} {Δ : TableVar → Formula}
     (hΔ : EnvModelsDom σ Δ) :
     ∀ {C φ ν}, DomCheck Δ C φ → Defined (denote σ C) ν → φ ν := by
@@ -231,10 +255,8 @@ theorem type_soundness {σ : TableVar → RelSem} {Γ : TableVar → List GFD}
       rcases ih₂ hmid_guard hmid_guard hagmid with
         ⟨hdefMid₁, hdefMid₂, hpostMid₁, hpostMid₂, huniq₂⟩
       refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · rcases hdefMid₁ with ⟨out, hout⟩
-        exact ⟨out, ⟨mid₁, hm₁, hout⟩⟩
-      · rcases hdefMid₂ with ⟨out, hout⟩
-        exact ⟨out, ⟨mid₁, hm₂, hout⟩⟩
+      · apply defined_denote_seq _ _ _ _ _ hm₁ hdefMid₁
+      · apply defined_denote_seq _ _ _ _ _ hm₂ hdefMid₂
       · intro out hout
         rcases hout with ⟨mid, hmid, hout⟩
         have hguardMid : _ := (hpost₁ _ hmid).2
@@ -272,14 +294,8 @@ theorem type_soundness {σ : TableVar → RelSem} {Γ : TableVar → List GFD}
       rcases ih₁ hg₁.1 hg₂.1 hag₁ with ⟨hdef₁₁, hdef₁₂, hpost₁₁, hpost₁₂, huniq₁⟩
       rcases ih₂ hg₁.2 hg₂.2 hag₂ with ⟨hdef₂₁, hdef₂₂, hpost₂₁, hpost₂₂, huniq₂⟩
       refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · rcases hdef₁₁ with ⟨out₁, hout₁⟩
-        rcases hdef₂₁ with ⟨out₂, hout₂⟩
-        exact ⟨(Action.pair out₁.1 out₂.1, mergeVal out₁.2 out₂.2),
-          ⟨out₁.1, out₂.1, out₁.2, out₂.2, hout₁, hout₂, rfl⟩⟩
-      · rcases hdef₁₂ with ⟨out₁, hout₁⟩
-        rcases hdef₂₂ with ⟨out₂, hout₂⟩
-        exact ⟨(Action.pair out₁.1 out₂.1, mergeVal out₁.2 out₂.2),
-          ⟨out₁.1, out₂.1, out₁.2, out₂.2, hout₁, hout₂, rfl⟩⟩
+      · apply defined_denote_join _ _ _ _ hdef₁₁ hdef₂₁
+      · apply defined_denote_join _ _ _ _ hdef₁₂ hdef₂₂
       · intro out hout
         rcases hout with ⟨a₁, a₂, ν₁', ν₂', h₁', h₂', rfl⟩
         refine ⟨supportWithin_merge (hpost₁₁ _ h₁').1 (hpost₂₁ _ h₂').1, ?_⟩
@@ -302,10 +318,8 @@ theorem type_soundness {σ : TableVar → RelSem} {Γ : TableVar → List GFD}
       intro ν₁ ν₂ hg₁ hg₂ hag
       rcases ih hg₁.2 hg₂.2 hag with ⟨hdef₁, hdef₂, hpost₁, hpost₂, huniq⟩
       refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · rcases hdef₁ with ⟨out, hout⟩
-        exact ⟨out, Or.inl hout⟩
-      · rcases hdef₂ with ⟨out, hout⟩
-        exact ⟨out, Or.inl hout⟩
+      · apply defined_denote_pref _ _ _ _ (Or.inl hdef₁)
+      · apply defined_denote_pref _ _ _ _ (Or.inl hdef₂)
       · intro out hout
         cases hout with
         | inl hleft =>
@@ -333,14 +347,8 @@ theorem type_soundness {σ : TableVar → RelSem} {Γ : TableVar → List GFD}
       intro ν₁ ν₂ hg₁ hg₂ hag
       rcases ih hg₁.2 hg₂.2 hag with ⟨hdef₁, hdef₂, hpost₁, hpost₂, huniq⟩
       refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · rcases hdef₁ with ⟨out, hout⟩
-        exact ⟨out, Or.inr ⟨by
-          intro hdef
-          exact hg₁.1 <| domain_overapprox hΔ hdom hdef, hout⟩⟩
-      · rcases hdef₂ with ⟨out, hout⟩
-        exact ⟨out, Or.inr ⟨by
-          intro hdef
-          exact hg₂.1 <| domain_overapprox hΔ hdom hdef, hout⟩⟩
+      · apply defined_denote_pref _ _ _ _ (Or.inr hdef₁)
+      · apply defined_denote_pref _ _ _ _ (Or.inr hdef₂)
       · intro out hout
         cases hout with
         | inl hleft =>
